@@ -178,48 +178,61 @@ test("RGB565 帧符合 Awtrix DrawBMP 线序", () => {
   assert.equal(b.readUInt16BE(9), 0x07e0);
   assert.equal(b.readUInt16BE(71), 0x001f);
 });
-test("局域网 MQTT 接收分段订阅并只向订阅设备发送画面", async () => {
-  const broker = startBroker({ port: 0, device: "127.0.0.1" });
-  await once(broker.server, "listening");
-  const socket = net.createConnection(
-    broker.server.address().port,
-    "127.0.0.1",
-  );
-  await once(socket, "connect");
-  let data = Buffer.alloc(0);
-  socket.on("data", (c) => (data = Buffer.concat([data, c])));
-  const connect = mqttPacket(
-    0x10,
-    Buffer.concat([
-      mqttString("MQTT"),
-      Buffer.from([4, 2, 0, 15]),
-      mqttString("test-c1"),
-    ]),
-  );
-  socket.write(connect);
-  await new Promise((r) => setTimeout(r, 20));
-  assert.equal(data.subarray(0, 4).toString("hex"), "20020000");
-  data = Buffer.alloc(0);
-  const sub = mqttPacket(
-    0x82,
-    Buffer.concat([
-      Buffer.from([0, 1]),
-      mqttString("awtrixmatrix/#"),
-      Buffer.from([0]),
-    ]),
-  );
-  socket.write(sub.subarray(0, 3));
-  await new Promise((r) => setTimeout(r, 10));
-  assert.equal([...broker.peers][0].subscribed, false);
-  socket.write(sub.subarray(3));
-  await new Promise((r) => setTimeout(r, 20));
-  assert.equal([...broker.peers][0].subscribed, true);
-  assert.equal(data.toString("hex"), "9003000100");
-  data = Buffer.alloc(0);
-  broker.send(Buffer.from([8]));
-  await new Promise((r) => setTimeout(r, 20));
-  assert.ok(data.includes(Buffer.from("awtrixmatrix/codex")));
-  assert.equal(data.at(-1), 8);
-  socket.destroy();
-  broker.close();
-});
+test(
+  "局域网 MQTT 接收分段订阅并只向订阅设备发送画面",
+  { timeout: 5000 },
+  async (t) => {
+    const broker = startBroker({ port: 0, device: "127.0.0.1" });
+    let socket;
+    t.after(() => {
+      socket?.destroy();
+      broker.close();
+    });
+    await once(broker.server, "listening");
+    socket = net.createConnection(broker.server.address().port, "127.0.0.1");
+    await once(socket, "connect");
+    let data = Buffer.alloc(0);
+    socket.on("data", (c) => (data = Buffer.concat([data, c])));
+    async function waitFor(condition) {
+      const deadline = Date.now() + 2000;
+      while (!condition()) {
+        if (Date.now() > deadline) throw Error("MQTT test response timeout");
+        await new Promise((resolve) => setTimeout(resolve, 5));
+      }
+    }
+    const connect = mqttPacket(
+      0x10,
+      Buffer.concat([
+        mqttString("MQTT"),
+        Buffer.from([4, 2, 0, 15]),
+        mqttString("test-c1"),
+      ]),
+    );
+    socket.write(connect);
+    await waitFor(() => data.length >= 4);
+    assert.equal(data.subarray(0, 4).toString("hex"), "20020000");
+    data = Buffer.alloc(0);
+    const peer = [...broker.peers][0],
+      before = peer.bytesRead;
+    const sub = mqttPacket(
+      0x82,
+      Buffer.concat([
+        Buffer.from([0, 1]),
+        mqttString("awtrixmatrix/#"),
+        Buffer.from([0]),
+      ]),
+    );
+    socket.write(sub.subarray(0, 3));
+    await waitFor(() => peer.bytesRead >= before + 3);
+    assert.equal(peer.subscribed, false);
+    socket.write(sub.subarray(3));
+    await waitFor(() => data.length >= 5);
+    assert.equal(peer.subscribed, true);
+    assert.equal(data.toString("hex"), "9003000100");
+    data = Buffer.alloc(0);
+    assert.equal(broker.send(Buffer.from([8])), 1);
+    await waitFor(() => data.length > 0);
+    assert.ok(data.includes(Buffer.from("awtrixmatrix/codex")));
+    assert.equal(data.at(-1), 8);
+  },
+);
