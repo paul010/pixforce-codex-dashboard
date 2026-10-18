@@ -1,0 +1,492 @@
+<!doctype html>
+<html lang="zh-CN">
+  <meta charset="utf-8" /><meta
+    name="viewport"
+    content="width=device-width,initial-scale=1"
+  /><title>Codex 像素台</title
+  ><style>
+    :root {
+      color-scheme: dark;
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+      background: #101416;
+      color: #eff3ef;
+    }
+    body {
+      max-width: 1000px;
+      margin: auto;
+      padding: 46px 28px;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    small,
+    .muted {
+      color: #8eaaa7;
+    }
+    h1 {
+      font-size: 30px;
+      font-weight: 650;
+      margin: 12px 0 6px;
+      letter-spacing: -1px;
+    }
+    p {
+      line-height: 1.7;
+    }
+    #status {
+      padding: 8px 14px;
+      border: 1px solid #35544c;
+      border-radius: 24px;
+      color: #9af1c1;
+      font-size: 13px;
+    }
+    .display {
+      margin: 32px 0 24px;
+      padding: 26px 20px;
+      background: #050909;
+      border: 1px solid #283532;
+      border-radius: 20px;
+      box-shadow: inset 0 0 30px #000;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      image-rendering: pixelated;
+      aspect-ratio: 4/1;
+    }
+    .caption {
+      display: flex;
+      justify-content: space-between;
+      margin: 18px 2px 0;
+      font-size: 13px;
+      color: #93ada6;
+    }
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+    .card {
+      padding: 18px 20px;
+      border: 1px solid #2a3834;
+      border-radius: 12px;
+    }
+    .card strong {
+      display: block;
+      font-size: 26px;
+      letter-spacing: -1px;
+      margin-top: 8px;
+    }
+    .buttons {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin: 22px 0;
+    }
+    button,
+    select {
+      background: #1b2724;
+      border: 1px solid #3c514a;
+      border-radius: 8px;
+      padding: 12px 16px;
+      color: #e2efe6;
+      font: inherit;
+      cursor: pointer;
+    }
+    button:hover,
+    button.active {
+      background: #a7e7b8;
+      color: #0a2616;
+      border-color: #a7e7b8;
+    }
+    .scenes {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 9px;
+      margin-top: 16px;
+    }
+    .scenes button {
+      text-align: left;
+      font-size: 14px;
+    }
+    .note {
+      margin-top: 28px;
+      font-size: 13px;
+      color: #79988c;
+    }
+    #error {
+      color: #e9b478;
+      min-height: 22px;
+      font-size: 13px;
+    }
+    @media (max-width: 650px) {
+      body {
+        padding: 24px 15px;
+      }
+      .scenes {
+        grid-template-columns: repeat(2, 1fr);
+      }
+      .cards {
+        grid-template-columns: 1fr;
+      }
+      .display {
+        padding: 14px 8px;
+      }
+      .caption {
+        font-size: 11px;
+      }
+    }
+
+    .card .detail {
+      display: block;
+      color: #8eaaa7;
+      font-size: 11px;
+      line-height: 1.5;
+      margin-top: 6px;
+      overflow-wrap: anywhere;
+    }
+    .activity-panel {
+      margin-top: 20px;
+      padding: 18px 20px;
+      border: 1px solid #2a3834;
+      border-radius: 12px;
+    }
+    .activity-heading {
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      font-size: 14px;
+    }
+    .daily-chart {
+      height: 132px;
+      display: grid;
+      grid-template-columns: repeat(14, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 18px;
+    }
+    .day {
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 5px;
+      min-width: 0;
+    }
+    .day .bar-slot {
+      height: 82px;
+      width: 100%;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      border-bottom: 1px solid #355047;
+    }
+    .day .bar {
+      display: block;
+      width: 70%;
+      background: #83dca9;
+      border-radius: 3px 3px 0 0;
+    }
+    .day.today .bar {
+      background: #e4c174;
+    }
+    .day .bar.missing {
+      height: 5px;
+      background: repeating-linear-gradient(
+        135deg,
+        #4a535c 0,
+        #4a535c 2px,
+        #252d35 2px,
+        #252d35 4px
+      );
+    }
+    .day .bar.zero {
+      height: 2px;
+      background: #83dca9;
+    }
+    .day figcaption {
+      color: #a8c4bb;
+      font-size: 10px;
+    }
+    .day .amount {
+      font-size: 9px;
+      color: #8eaaa7;
+      white-space: nowrap;
+    }
+    .activity-note {
+      font-size: 11px;
+      color: #8eaaa7;
+      margin: 5px 0 0;
+    }
+    .cards {
+      margin-bottom: 12px;
+    }
+    @media (max-width: 650px) {
+      .cards {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .card {
+        padding: 14px 12px;
+      }
+      .card strong {
+        font-size: 20px;
+      }
+      .daily-chart {
+        gap: 3px;
+      }
+      .day figcaption,
+      .day .amount {
+        font-size: 8px;
+      }
+      .activity-panel {
+        padding: 14px 8px;
+      }
+      .activity-heading {
+        font-size: 12px;
+      }
+    }
+  </style>
+  <header>
+    <div>
+      <small>CODEX × PIXFORCE C1</small>
+      <h1>把工作节奏，变成像素。</h1>
+    </div>
+    <span id="status">正在连接</span>
+  </header>
+  <p class="muted">国庆、贝果、点点陪你工作，看看 Token 与每天的小进展。</p>
+  <div class="display">
+    <canvas id="screen" width="512" height="128"></canvas>
+    <div class="caption">
+      <span id="scene">—</span><span id="transport">—</span>
+    </div>
+  </div>
+  <div class="cards">
+    <div class="card">
+      <small>Codex 剩余额度</small><strong id="quota">—</strong>
+    </div>
+    <div class="card">
+      <small>数据状态</small><strong id="fresh">等待同步</strong>
+    </div>
+    <div class="card">
+      <small>已推送画面</small><strong id="frames">0</strong>
+    </div>
+    <div class="card">
+      <small>累计 Token</small><strong id="total-tokens">—</strong
+      ><span class="detail" id="total-detail">等待账户统计</span>
+    </div>
+    <div class="card">
+      <small>近 14 天已记录 Token</small><strong id="activity-total">—</strong
+      ><span class="detail" id="activity-detail">等待活动记录</span>
+    </div>
+    <div class="card">
+      <small>近 14 天活跃</small><strong id="active-days">—</strong
+      ><span class="detail" id="active-detail">以有记录日期计算</span>
+    </div>
+  </div>
+  <div class="activity-panel">
+    <div class="activity-heading">
+      <span>Token 活动 · 近 14 天</span
+      ><span id="activity-range">等待同步</span>
+    </div>
+    <div
+      class="daily-chart"
+      id="daily-chart"
+      role="img"
+      aria-label="近 14 天 Token 用量柱状图"
+    ></div>
+    <p class="activity-note" id="activity-note">
+      柱高表示当日用量，灰色条纹表示未返回，0 表示已确认零用量。
+    </p>
+  </div>
+  <div class="buttons">
+    <button onclick="send({action:'scene',scene:'auto'})" id="auto">
+      自动轮播</button
+    ><button onclick="send({action:'clock'})">回到原时钟</button
+    ><button onclick="send({action:'activate'})">重新连接时钟</button
+    ><button onclick="send({action:'refresh'})">刷新统计</button
+    ><select onchange="send({action:'fps',fps:+this.value})">
+      <option value="8">8 帧 / 秒</option>
+      <option value="4">4 帧 / 秒</option>
+    </select>
+  </div>
+  <div id="error"></div>
+  <small>选择一个画面</small>
+  <div class="scenes" id="scenes"></div>
+  <p class="note">
+    统计来自本机 Codex App Server。演示模式使用虚构数据。累计 Token
+    是账户用量，不代表剩余额度。时钟上的 K / M / B / T 分别表示千 / 百万 / 十亿
+    / 万亿；14 根柱子从左到右由旧到新，金色是今天。数据缺失显示灰色或“--”。Mac
+    服务正常停止时会恢复原时钟。
+  </p>
+  <script>
+    const token = "__TOKEN__",
+      ctx = document.getElementById("screen").getContext("2d");
+    let built = false,
+      busy = false,
+      lastMetrics = "";
+    async function send(body) {
+      try {
+        const r = await fetch("/api/control", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(body),
+        });
+        const j = await r.json();
+        if (!r.ok) throw Error(j.error);
+        update(j.state);
+      } catch (e) {
+        document.getElementById("error").textContent = e.message;
+      }
+    }
+    function tokenText(n) {
+      return typeof n === "number" && Number.isFinite(n)
+        ? n >= 1e8
+          ? (n / 1e8).toFixed(2) + " 亿"
+          : n >= 1e4
+            ? (n / 1e4).toFixed(1) + " 万"
+            : n.toLocaleString()
+        : "—";
+    }
+    function updateMetrics(s) {
+      const key = JSON.stringify([
+        s.tokensTotal,
+        s.tokensStale,
+        s.activity,
+        s.activityStale,
+      ]);
+      if (key === lastMetrics) return;
+      lastMetrics = key;
+      document.getElementById("total-tokens").textContent = tokenText(
+        s.tokensTotal,
+      );
+      document.getElementById("total-detail").textContent =
+        s.tokensTotal === null
+          ? "账户暂未返回累计值"
+          : s.tokensTotal.toLocaleString("zh-CN") +
+            " tokens" +
+            (s.tokensStale ? " · 待更新" : "");
+      const a = s.activity;
+      document.getElementById("activity-total").textContent = tokenText(
+        a?.total,
+      );
+      document.getElementById("activity-detail").textContent = a
+        ? `${a.knownDays} / 14 天有记录${s.activityStale ? " · 待更新" : ""}`
+        : "等待活动记录";
+      document.getElementById("active-days").textContent = a
+        ? `${a.activeDays} 天`
+        : "—";
+      document.getElementById("active-detail").textContent = a
+        ? `${14 - a.knownDays} 天未返回 · 不计为零`
+        : "以有记录日期计算";
+      document.getElementById("activity-range").textContent = a
+        ? `${a.start.slice(5).replace("-", "/")} — ${a.end.slice(5).replace("-", "/")}`
+        : "等待同步";
+      const root = document.getElementById("daily-chart");
+      root.replaceChildren();
+      for (const [i, d] of (a?.days || []).entries()) {
+        const day = document.createElement("figure");
+        day.className = "day" + (i === 13 ? " today" : "");
+        day.title = `${d.date}：${d.tokens === null ? "未返回" : d.tokens.toLocaleString() + " tokens"}`;
+        day.setAttribute("aria-label", day.title);
+        const slot = document.createElement("div");
+        slot.className = "bar-slot";
+        const bar = document.createElement("i");
+        bar.className =
+          "bar" +
+          (d.tokens === null ? " missing" : d.tokens === 0 ? " zero" : "");
+        if (d.tokens > 0)
+          bar.style.height = `${Math.max(3, (d.tokens / a.peak) * 82)}px`;
+        slot.append(bar);
+        const date = document.createElement("figcaption");
+        date.textContent =
+          i === 0 ? d.date.slice(5).replace("-", "/") : d.date.slice(8);
+        const amount = document.createElement("span");
+        amount.className = "amount";
+        amount.textContent = d.tokens === null ? "—" : tokenText(d.tokens);
+        day.append(slot, date, amount);
+        root.append(day);
+      }
+    }
+    function update(s) {
+      updateMetrics(s);
+      document.querySelectorAll("button").forEach((b) => {
+        if (["回到原时钟", "重新连接时钟"].includes(b.textContent))
+          b.hidden = !s.hardware;
+      });
+      document.getElementById("status").textContent = s.demo
+        ? "演示数据 · 未连接实物"
+        : !s.hardware
+          ? "账户预览 · 未连接实物"
+          : !s.enabled
+            ? "原时钟模式"
+            : s.deviceClients && s.mqtt === "subscribed"
+              ? "时钟已连接"
+              : "等待时钟连接";
+      document.getElementById("quota").textContent = s.quota
+        ? `${Math.round(100 - s.quota.pct)}% · ${s.quota.name === "7d" ? "本周" : s.quota.name}`
+        : "暂无数据";
+      document.getElementById("fresh").textContent =
+        s.quotaStale || s.tokensStale || s.activityStale
+          ? "部分待更新"
+          : "已同步";
+      document.getElementById("frames").textContent = s.frames.toLocaleString();
+      document.getElementById("scene").textContent =
+        (s.scenes.find((x) => x.id === s.currentScene)?.name ||
+          s.currentScene) + (s.enabled ? "" : " · 已恢复原时钟");
+      document.getElementById("transport").textContent =
+        `32 × 8 · ${s.fps} FPS · ${s.demo ? "DEMO" : s.device || "网页预览"}`;
+      document.getElementById("error").textContent =
+        s.lastError || s.dataError || "";
+      ctx.fillStyle = "#030706";
+      ctx.fillRect(0, 0, 512, 128);
+      s.pixels.forEach(([r, g, b], i) => {
+        ctx.fillStyle = `rgb(${r},${g},${b})`;
+        ctx.beginPath();
+        ctx.roundRect(
+          (i % 32) * 16 + 1,
+          Math.floor(i / 32) * 16 + 1,
+          13,
+          13,
+          2,
+        );
+        ctx.fill();
+      });
+      if (!built) {
+        const root = document.getElementById("scenes");
+        s.scenes.forEach((x) => {
+          const b = document.createElement("button");
+          b.textContent = x.name;
+          b.dataset.scene = x.id;
+          b.onclick = () => send({ action: "scene", scene: x.id });
+          root.append(b);
+        });
+        built = true;
+      }
+      document
+        .querySelectorAll("[data-scene]")
+        .forEach((b) =>
+          b.classList.toggle("active", b.dataset.scene === s.scene),
+        );
+      document
+        .getElementById("auto")
+        .classList.toggle("active", s.scene === "auto");
+    }
+    async function poll() {
+      if (busy) return;
+      busy = true;
+      try {
+        const r = await fetch("/api/state");
+        update(await r.json());
+      } catch {
+        document.getElementById("status").textContent = "Mac 服务未连接";
+      } finally {
+        busy = false;
+      }
+    }
+    poll();
+    setInterval(poll, 200);
+  </script>
+</html>

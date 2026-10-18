@@ -1,0 +1,13 @@
+.env
+.env.*
+!.env.example
+.local/
+node_modules/
+backups/
+*.bin
+*.log
+*.private.json
+verification*.json
+preview*.png
+.DS_Store
+coverage/

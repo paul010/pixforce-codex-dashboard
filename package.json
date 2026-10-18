@@ -1,0 +1,18 @@
+{
+  "name": "pixforce-codex-dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A local Codex usage dashboard and 32x8 pixel animation bridge for PixForce C1",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.21.0"
+  },
+  "scripts": {
+    "start": "node --env-file-if-exists=.env server.mjs",
+    "demo": "node --env-file-if-exists=.env server.mjs --demo",
+    "clock": "node --env-file-if-exists=.env server.mjs --activate",
+    "test": "node --test dashboard.test.mjs test/*.test.mjs",
+    "privacy-check": "node scripts/check-public.mjs"
+  }
+}
