@@ -4,7 +4,7 @@
 
 一个本地运行的 **32×8 像素看板与动画服务**：真实额度、累计 Token、近 14 天活动、国庆 / 贝果 / 点点，以及火箭、代码雨、烟花等 19 种画面。支持没有硬件的演示模式，也能通过原有 Awtrix 接收应用连接 PixForce C1。
 
-[English overview](README.en.md) · [设备与协议](docs/hardware.md) · [数据口径](docs/data.md) · [分享录制提纲](docs/recording-guide.md)
+[English overview](README.en.md) · [Ubuntu 常驻 + Mac 同步部署](docs/ubuntu-mac-relay.md) · [设备与协议](docs/hardware.md) · [数据口径](docs/data.md) · [分享录制提纲](docs/recording-guide.md)
 
 ![虚构数据演示，未读取真实账号](docs/dashboard-demo.png)
 
@@ -54,6 +54,7 @@ cp .env.example .env
 | `PIXFORCE_MQTT_PORT` | 时钟接收画面的本地 MQTT 端口，默认 18884 |
 | `PIXFORCE_FPS` | 4 或 8，默认 8 |
 | `CODEX_BIN` | 可选，Codex CLI 可执行文件路径 |
+| `PIXFORCE_METRICS_FILE` | 可选，汇总快照绝对路径；设置后无需显示主机登录 Codex |
 
 然后运行：
 
@@ -64,6 +65,14 @@ npm run clock
 **这一步会修改 Awtrix 应用的服务器地址、端口和轮播时长，并手动进入该接收应用。** 其他显示应用保留；已有接收应用会被复用，未找到时创建一个。配置写入后必须回读一致才继续。
 
 网页中可选单个画面、自动轮播、切回原时钟和调整帧率。正常退出服务会尝试恢复原时钟。电脑休眠、断网或强制终止时无法保证自动切回，可用设备按键切换。电脑和时钟地址变化后需更新配置。
+
+## Ubuntu 常驻显示，Mac 同步统计
+
+把显示服务放在持续开机的 Ubuntu，Mac 每分钟通过 SSH 发送**额度、累计 Token、近 14 天活动的汇总快照**。Ubuntu 每 15 秒读取一次，不需要安装或登录 Codex。Mac 睡眠或离线时，动画继续；统计超过 3 分钟标记待更新，超过 5 分钟隐藏旧数值。
+
+仓库提供 systemd 用户服务、Ubuntu 准备脚本、独立 Mac 同步端和 LaunchAgent 安装器。部署顺序是：Ubuntu 配置与防火墙 → Mac 单次同步 → 停止旧硬件服务 → Ubuntu 接管与实物验收 → Mac 登录后自动同步。不要同时运行两份硬件服务。
+
+完整命令、SSH 隧道、验证信号、排障和回退见 **[部署说明](docs/ubuntu-mac-relay.md)**。断线时每 5 秒检查实际订阅并重试；手动回到原时钟后不自动抢回。
 
 ## 画面与数据
 
@@ -83,12 +92,16 @@ npm test
 
 测试覆盖协议 CRC / 坏帧、合成设备样例、RGB565、MQTT 分段订阅、19 种画面、日期及缺失值、独立账户客户端、配置校验、本地 HTTP 控制与来源限制。测试不依赖实物或真实账号。
 
+新增测试覆盖重连互斥、接收连接替换、源时间过期、文件模式不调用账户客户端、同步字段白名单、SSH 写入失败保留旧快照和 LaunchAgent 路径转义。同步端的测试需要 Python 3。
+
 | 文件 | 作用 |
 | --- | --- |
 | `server.mjs` | 本地控制台、调度、设备连接 |
 | `account.mjs` | 独立 Codex App Server stdio 客户端 |
 | `render.mjs` / `cats.mjs` | 像素画面与三只猫 |
 | `metrics.mjs` | 账户指标和 14 天聚合 |
+| `metrics-snapshot.mjs` / `reconnect.mjs` | 快照校验和新鲜度、断线恢复 |
+| `deploy/` | systemd、独立 Mac 汇总同步及安装脚本 |
 | `c1.mjs` / `mqtt.mjs` | C1 WebSocket 配置、Awtrix 帧发送 |
 | `demo.mjs` | 仅用于预览的虚构数据 |
 
@@ -98,7 +111,7 @@ npm test
 
 网页只绑定回环地址，写操作检查本地凭证和来源。硬件模式的 MQTT 只绑定指定电脑 IP，并过滤时钟来源 IP；**IP 过滤不是身份认证**，请只在可信家庭局域网使用，不做公网端口转发。服务不提供 TLS，也没有经过独立安全审计。
 
-演示模式可跨平台运行；实物桥接目前只在 macOS 验证。系统登录自动启动可参考 [macOS 说明](docs/macos-autostart.md)，本仓库不会自动修改系统启动项。
+演示模式可跨平台运行；实物桥接已在 macOS 和 Ubuntu 22.04 x86_64 / Node 22.23.4 验证。系统登录自动启动可参考 [macOS 说明](docs/macos-autostart.md)；持续运行可参考 [Ubuntu + Mac 说明](docs/ubuntu-mac-relay.md)。安装脚本只有在手动执行时才写入对应用户的启动项。
 
 ## 来源与许可
 

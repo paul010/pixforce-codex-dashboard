@@ -1,0 +1,19 @@
+[Unit]
+Description=PixForce pixel dashboard
+After=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+ExecStart=%h/.local/share/pixforce-dashboard/run-service.sh
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=12
+KillMode=control-group
+NoNewPrivileges=true
+PrivateTmp=true
+UMask=0077
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+
+[Install]
+WantedBy=default.target

@@ -39,6 +39,7 @@ export function loadConfig(
     hardware,
     device,
     hostIP,
+    metricsFile: env.PIXFORCE_METRICS_FILE || null,
     httpPort: port("PIXFORCE_HTTP_PORT", 8788),
     mqttPort: port("PIXFORCE_MQTT_PORT", 18884),
     fps,

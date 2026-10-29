@@ -10,6 +10,8 @@ import { accountMetrics } from "./metrics.mjs";
 import { readAccountData } from "./account.mjs";
 import { loadConfig } from "./config.mjs";
 import { demoAccountData } from "./demo.mjs";
+import { parseMetricsSnapshot } from "./metrics-snapshot.mjs";
+import { singleFlight, startReconnect } from "./reconnect.mjs";
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const SEQUENCE = [
@@ -78,7 +80,8 @@ export async function startDashboard(
     stopping = false,
     wasActivated = false,
     clockId = null,
-    frameNo = 0;
+    frameNo = 0,
+    desiredEnabled = config.hardware;
   let broker = null;
   if (config.hardware) {
     broker = startBroker({
@@ -108,10 +111,10 @@ export async function startDashboard(
       deviceClients: broker?.peers.size || 0,
     };
   }
-  function acceptMetric(name, value, available) {
+  function acceptMetric(name, value, available, capturedAt = Date.now()) {
     if (available) {
       state[name === "tokens" ? "tokensTotal" : name] = value;
-      metricTimes[name] = Date.now();
+      metricTimes[name] = capturedAt;
     }
     state[`${name}Stale`] = !available;
   }
@@ -119,34 +122,39 @@ export async function startDashboard(
     if (refreshing) return;
     refreshing = true;
     try {
-      const data = config.demo ? demoAccountData() : await readAccount();
-      const m = accountMetrics(data);
-      acceptMetric("quota", m.quota, !!m.quota);
-      acceptMetric("tokens", m.tokensTotal, m.tokensTotal !== null);
-      acceptMetric("activity", m.activity, m.activity.knownDays > 0);
-      state.lastDataAt = new Date().toISOString();
-      state.dataSource = config.demo ? "synthetic-demo" : "Codex App Server";
+      const m = config.metricsFile && !config.demo
+        ? parseMetricsSnapshot(fs.readFileSync(config.metricsFile, "utf8"))
+        : accountMetrics(config.demo ? demoAccountData() : await readAccount());
+      const fresh = m.fresh !== false;
+      acceptMetric("quota", m.quota, fresh && !!m.quota, m.capturedAt);
+      acceptMetric("tokens", m.tokensTotal, fresh && m.tokensTotal !== null, m.capturedAt);
+      acceptMetric("activity", m.activity, fresh && m.activity.knownDays > 0, m.capturedAt);
+      state.lastDataAt = new Date(m.capturedAt ?? Date.now()).toISOString();
+      state.dataSource = config.demo ? "synthetic-demo" : config.metricsFile ? "Mac aggregate snapshot" : "Codex App Server";
       const missing = [
         state.quotaStale ? "额度" : null,
         state.tokensStale ? "累计 Token" : null,
         state.activityStale ? "活动" : null,
       ].filter(Boolean);
       state.dataError = missing.length
-        ? `部分数据未返回：${missing.join("、")}`
+        ? (config.metricsFile && !fresh ? "Mac 统计待更新；时钟与动画继续运行" : `部分数据未返回：${missing.join("、")}`)
         : null;
     } catch {
       for (const name of Object.keys(metricTimes)) state[`${name}Stale`] = true;
       state.dataError =
-        "账户统计暂不可用，请检查 codex login status 与 App Server 支持情况";
+        config.metricsFile ? "等待 Mac 同步统计；时钟与动画继续运行" : "账户统计暂不可用，请检查 codex login status 与 App Server 支持情况";
     } finally {
       refreshing = false;
     }
   }
-  async function activate() {
+  const activate = singleFlight(activateReceiver);
+  async function activateReceiver() {
+    desiredEnabled = true;
     if (!config.hardware)
       throw Error("当前为网页预览；连接实物请配置 .env 并运行 npm run clock");
-    const c = await new C1(`ws://${config.device}/ws`).connect();
+    const c = new C1(`ws://${config.device}/ws`);
     try {
+      await c.connect();
       let list = apps(await c.request(24));
       clockId = list.find((a) => a.type === 1)?.id ?? null;
       if (clockId === null) throw Error("未找到原时钟应用，停止修改");
@@ -195,6 +203,9 @@ export async function startDashboard(
     }
   }
   async function resumeClock() {
+    desiredEnabled = false;
+    state.enabled = false;
+    await activate.wait();
     state.enabled = false;
     if (!config.hardware || clockId === null) return;
     const c = await new C1(`ws://${config.device}/ws`).connect();
@@ -314,7 +325,13 @@ export async function startDashboard(
       if (delivered) state.frames++;
     }
   }, 125);
-  const refreshTimer = setInterval(refresh, 60000);
+  const refreshTimer = setInterval(refresh, config.metricsFile ? 15000 : 60000);
+  const reconnect = startReconnect({
+    shouldReconnect: () => config.hardware && !stopping && desiredEnabled && ![...(broker?.peers || [])].some(peer => peer.subscribed && !peer.destroyed),
+    connect: activate,
+    onError: error => { state.lastError = error.message; },
+    intervalMs: 5000,
+  });
   refresh();
   if (config.hardware)
     activate().catch((e) => {
@@ -323,6 +340,7 @@ export async function startDashboard(
   async function stop() {
     if (stopping) return;
     stopping = true;
+    reconnect.stop();
     clearInterval(tick);
     clearInterval(refreshTimer);
     if (wasActivated)

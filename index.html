@@ -313,9 +313,9 @@
   <small>选择一个画面</small>
   <div class="scenes" id="scenes"></div>
   <p class="note">
-    统计来自本机 Codex App Server。演示模式使用虚构数据。累计 Token
+    统计来自本机 Codex App Server，或由另一台 Mac 同步的汇总快照。超过 3 分钟未更新时标记待更新，超过 5 分钟隐藏旧数值；动画继续运行。演示模式使用虚构数据。累计 Token
     是账户用量，不代表剩余额度。时钟上的 K / M / B / T 分别表示千 / 百万 / 十亿
-    / 万亿；14 根柱子从左到右由旧到新，金色是今天。数据缺失显示灰色或“--”。Mac
+    / 万亿；14 根柱子从左到右由旧到新，金色是今天。数据缺失显示灰色或“--”。显示
     服务正常停止时会恢复原时钟。
   </p>
   <script>
@@ -481,7 +481,7 @@
         const r = await fetch("/api/state");
         update(await r.json());
       } catch {
-        document.getElementById("status").textContent = "Mac 服务未连接";
+        document.getElementById("status").textContent = "显示服务未连接";
       } finally {
         busy = false;
       }

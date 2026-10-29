@@ -120,7 +120,10 @@ export function startBroker({
     socket.on("error", () => {});
     socket.on("close", () => {
       peers.delete(socket);
-      onState?.("disconnected");
+      const active = [...peers].filter((peer) => !peer.destroyed);
+      onState?.(active.some((peer) => peer.subscribed)
+        ? "subscribed"
+        : active.length ? "connected" : "disconnected");
     });
   });
   server.listen(port, host);

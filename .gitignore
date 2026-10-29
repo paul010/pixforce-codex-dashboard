@@ -11,3 +11,5 @@ verification*.json
 preview*.png
 .DS_Store
 coverage/
+metrics-snapshot.json
+.metrics-*
